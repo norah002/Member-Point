@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
-    <title>نظام النقاط </title>
+    <title>نظام النقاط الديناميكي- </title>
     <style>
         * {
             box-sizing: border-box;
@@ -62,13 +62,13 @@
             margin-bottom: 15px;
             flex-wrap: wrap;
         }
-        .input-group input {
+        .input-group input, .input-group select {
             flex: 1;
             padding: 12px 15px;
             border: 2px solid #d4e0ec;
             border-radius: 50px;
             font-size: 1rem;
-            min-width: 200px;
+            min-width: 150px;
         }
         .input-group button {
             background: #27ae60;
@@ -158,11 +158,20 @@
             border-bottom: 3px solid #3498db;
             padding-bottom: 15px;
             margin-bottom: 15px;
+            cursor: pointer; /* يشير إلى قابلية الضغط */
         }
         .member-name {
             font-size: 1.3rem;
             font-weight: 700;
             color: #1e3c5c;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toggle-icon {
+            font-size: 1.5rem;
+            transition: transform 0.2s;
+            display: inline-block;
         }
         .member-total {
             background: #2c3e50;
@@ -170,6 +179,17 @@
             padding: 8px 20px;
             border-radius: 40px;
             font-weight: 600;
+        }
+
+        .tasks-container {
+            transition: max-height 0.3s ease, opacity 0.2s;
+            overflow: hidden;
+        }
+        .tasks-container.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         .task-category {
@@ -286,7 +306,7 @@
 <body>
 <div class="container">
     <h1>🧾 نظام النقاط الديناميكي</h1>
-    <div class="subtitle">⚡ أضف أعضاء جدد · أضف مهام عامة · حدد الإنجازات</div>
+    <div class="subtitle">⚡ أضف أعضاء جدد · أضف مهام عامة · اضغط على اسم العضو لطي المهام</div>
 
     <!-- لوحة التحكم -->
     <div class="control-panel">
@@ -458,13 +478,13 @@
     window.removeMember = function(index) {
         members.splice(index, 1);
         renderMemberTags();
-        renderAllMembersCards(); // إعادة بناء بطاقات الأعضاء
+        renderAllMembersCards();
     };
 
     window.removeTask = function(index) {
         generalTasks.splice(index, 1);
         renderTaskTags();
-        renderAllMembersCards(); // إعادة بناء البطاقات لأن المهام تغيرت
+        renderAllMembersCards();
     };
 
     // إضافة عضو جديد
@@ -491,7 +511,6 @@
         const category = categorySelect.value;
 
         if (desc && points > 0) {
-            // هل هي تصميم؟ نعم إذا كانت الفئة "فرقة التصميم" أو كتبنا كلمة تصميم
             const isDesign = (category === 'فرقة التصميم' || desc.includes('تصميم'));
             generalTasks.push({
                 desc: desc,
@@ -511,29 +530,40 @@
     // -------------------- بناء بطاقات الأعضاء بشكل كامل --------------------
     function renderAllMembersCards() {
         membersGrid.innerHTML = '';
-        memberSections = []; // نبدأ من جديد
+        memberSections = [];
 
         members.forEach((memberFullName, memberIdx) => {
-            // المهام الخاصة به (إن وجدت)
             const specials = specialTasksMap[memberFullName] || [];
-            // جميع المهام = المهام الخاصة + المهام العامة
             const allTasks = [...specials, ...generalTasks];
 
             const card = document.createElement('div');
             card.className = 'member-card';
             card.dataset.memberIndex = memberIdx;
 
+            // هيدر العامل (يحتوي على اسم العضو + السهم + المجموع)
             const header = document.createElement('div');
             header.className = 'member-header';
-            header.innerHTML = `
-                <span class="member-name">${memberFullName}</span>
-                <span class="member-total" id="total-${memberIdx}">0</span>
-            `;
+            header.setAttribute('data-member', memberIdx);
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'member-name';
+            nameDiv.innerHTML = `<span class="toggle-icon">⬇️</span> ${memberFullName}`;
+
+            const totalSpan = document.createElement('span');
+            totalSpan.className = 'member-total';
+            totalSpan.id = `total-${memberIdx}`;
+            totalSpan.textContent = '0';
+
+            header.appendChild(nameDiv);
+            header.appendChild(totalSpan);
             card.appendChild(header);
 
+            // حاوية المهام (التي سيتم طيها)
             const tasksContainer = document.createElement('div');
+            tasksContainer.className = 'tasks-container';
+            tasksContainer.id = `tasks-${memberIdx}`;
 
-            // تجميع المهام حسب الفئة لعرضها
+            // تجميع المهام حسب الفئة
             const categories = {};
             allTasks.forEach((task, idx) => {
                 const cat = task.category || 'أخرى';
@@ -541,7 +571,7 @@
                 categories[cat].push({ ...task, globalIdx: idx });
             });
 
-            let taskCounter = 0; // عداد فريد للمهام داخل هذا العضو
+            let taskCounter = 0;
             const checkboxes = [];
             const designInputs = [];
 
@@ -556,7 +586,7 @@
 
                     const chk = document.createElement('input');
                     chk.type = 'checkbox';
-                    chk.checked = false; // نبدأ من الصفر
+                    chk.checked = false;
                     chk.dataset.member = memberIdx;
                     chk.dataset.task = taskCounter;
                     chk.dataset.points = task.points;
@@ -589,7 +619,6 @@
                     }
 
                     checkboxes.push({ chk, taskIdx: taskCounter });
-
                     taskCounter++;
                 });
 
@@ -599,15 +628,17 @@
             card.appendChild(tasksContainer);
             membersGrid.appendChild(card);
 
-            // حفظ حالة هذا العضو
+            // حفظ المراجع
             memberSections[memberIdx] = {
                 checkboxes: checkboxes,
                 designInputs: [], // سنعبئها بعد الإضافة
-                memberName: memberFullName
+                memberName: memberFullName,
+                tasksContainer: tasksContainer,
+                toggleIcon: nameDiv.querySelector('.toggle-icon')
             };
         });
 
-        // بعد إضافة كل شيء، نجمع حقول التصميم
+        // جمع حقول التصميم
         members.forEach((_, memberIdx) => {
             const designInputs = [];
             document.querySelectorAll(`.design-input input[data-member="${memberIdx}"]`).forEach(input => {
@@ -619,7 +650,35 @@
             }
         });
 
+        // إضافة فعالية النقر على الهيدر للطي
+        document.querySelectorAll('.member-header').forEach(header => {
+            header.addEventListener('click', function(e) {
+                // منع الطي إذا تم النقر على زر المجموع نفسه (مجرد حماية)
+                if (e.target.classList.contains('member-total')) return;
+                const memberIdx = this.dataset.member;
+                if (memberIdx !== undefined) {
+                    toggleMemberTasks(parseInt(memberIdx));
+                }
+            });
+        });
+
         updateAllTotals();
+    }
+
+    // دالة طي/إظهار المهام
+    function toggleMemberTasks(memberIdx) {
+        const section = memberSections[memberIdx];
+        if (!section) return;
+        const container = section.tasksContainer;
+        const icon = section.toggleIcon;
+
+        if (container.classList.contains('collapsed')) {
+            container.classList.remove('collapsed');
+            icon.textContent = '⬇️'; // سهم لأسفل (مفتوح)
+        } else {
+            container.classList.add('collapsed');
+            icon.textContent = '⬅️'; // سهم لليسار (مغلق)
+        }
     }
 
     // تحديث كل المجاميع
